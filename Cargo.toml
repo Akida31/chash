@@ -1,8 +1,9 @@
 [package]
 name = "check_hash"
-version = "0.1.0"
+version = "1.0.0"
 authors = ["akida <47895118+Akida31@users.noreply.github.com>"]
 edition = "2018"
+description = "Check or generate the hash of directories or files"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -11,3 +12,4 @@ md-5 = "0.9.1"
 sha-1 = "0.9.1"
 sha2 = "0.9.1"
 digest = "0.9.0"
+clap = "2.33.1"
