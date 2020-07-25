@@ -51,7 +51,7 @@ pub fn get_algorithm_by_hash_len(len: usize) -> Option<String> {
 fn byte_to_hex(input: &[u8]) -> String {
     let mut out = String::new();
     for &byte in input {
-        write!(&mut out, "{:x}", byte).expect("Parsing Error");
+        write!(&mut out, "{:02x}", byte).expect("Parsing Error");
     }
     out
 }
@@ -74,12 +74,12 @@ macro_rules! generate_hasher {
 }
 
 // TODO document this
-fn get_files_of_directory(direcory: PathBuf) -> std::io::Result<Vec<PathBuf>> {
+pub fn get_files_of_directory(direcory: PathBuf, recursive: bool) -> std::io::Result<Vec<PathBuf>> {
     let mut result: Vec<PathBuf> = Vec::new();
     for entry in fs::read_dir(direcory)? {
         let path = entry?.path();
-        if path.is_dir() {
-            result.append(&mut get_files_of_directory(path).unwrap());
+        if path.is_dir() && recursive {
+            result.append(&mut get_files_of_directory(path, recursive).unwrap());
         } else {
             result.push(path);
         }
@@ -119,7 +119,7 @@ pub fn hash(path: PathBuf, algorithm: &str) -> Result<String, String> {
     let files = if path.is_file() {
         vec![path]
     } else {
-        get_files_of_directory(path).unwrap()
+        get_files_of_directory(path, true).unwrap()
     };
     for file in files {
         let file = match File::open(&file) {
