@@ -10,11 +10,8 @@ use std::fs;
 const BUFFER_SIZE: usize = 1024;
 
 /// Get a List of all supported algorithms
-pub fn available_algorithms() -> Vec<String> {
-    vec!["md5", "sha1", "sha256", "sha384", "sha512"]
-        .into_iter()
-        .map(|s| s.to_string())
-        .collect()
+pub fn available_algorithms() -> [&'static str; 5] {
+    ["md5", "sha1", "sha256", "sha384", "sha512"]
 }
 
 /// Evaluates the algorithm from the length of a hash
@@ -56,24 +53,19 @@ fn byte_to_hex(input: &[u8]) -> String {
     out
 }
 
-/// generator for the match expression of the different algorithms
+/// Lists all files of the given directory
+///
+/// It returns a Vec of PathBufs for every file.
+/// The recursive option can be used to get also all files of subdirectories recursively.
+///
 /// # Examples
 /// ```
-/// let algorithm = "md5";
-/// let mut hasher: Box<dyn digest::DynDigest> = match_algo!(algorithm, ["md5" => md5::Md5, "sha1" => sha1::Sha1]);
+/// use std::io::Result;
+/// use std::path::PathBuf;
+///
+/// // get all files of the current folder
+/// let files: Result<Vec<PathBuf>> = get_files_of_directory(PathBuf::from("."), false);
 /// ```
-macro_rules! generate_hasher {
-    ($matcher: expr, [$($name: expr => $func: ty),+]) => {{
-        match $matcher {
-            $($name => {{
-                Box::new(<$func>::new())
-            }},)+
-            a => unimplemented!("Algorithm {} is not implemented", a)
-        }
-    }}
-}
-
-// TODO document this
 pub fn get_files_of_directory(direcory: PathBuf, recursive: bool) -> std::io::Result<Vec<PathBuf>> {
     let mut result: Vec<PathBuf> = Vec::new();
     for entry in fs::read_dir(direcory)? {
@@ -88,7 +80,6 @@ pub fn get_files_of_directory(direcory: PathBuf, recursive: bool) -> std::io::Re
 }
 
 /// computes the hash of the given path with the given algorithm
-///
 ///
 /// returns the hexdigits (lowercase) of the hash
 /// Path must be a valid path.
@@ -107,15 +98,17 @@ pub fn get_files_of_directory(direcory: PathBuf, recursive: bool) -> std::io::Re
 /// let result = hash(file, &algorithm);
 /// ```
 pub fn hash(path: PathBuf, algorithm: &str) -> Result<String, String> {
-    if !available_algorithms().contains(&algorithm.to_string()) {
+    if !available_algorithms().contains(&algorithm) {
         return Err(format!("{} is not a available algorithm!", algorithm));
     }
-    let mut hasher: Box<dyn digest::DynDigest> = generate_hasher!(algorithm, [
-            "md5" => md5::Md5,
-            "sha1" => sha1::Sha1,
-            "sha256" => sha2::Sha256,
-            "sha384" => sha2::Sha384,
-            "sha512" => sha2::Sha512]);
+    let mut hasher: Box<dyn digest::DynDigest> = match algorithm {
+        "md5" => Box::new(md5::Md5::new()),
+        "sha1" => Box::new(sha1::Sha1::new()),
+        "sha256" => Box::new(sha2::Sha256::new()),
+        "sha384" => Box::new(sha2::Sha384::new()),
+        "sha512" => Box::new(sha2::Sha512::new()),
+        a => unimplemented!("Algorithm {} is not implemented", a),
+    };
     let files = if path.is_file() {
         vec![path]
     } else {
