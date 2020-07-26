@@ -9,4 +9,5 @@ It's a cli which provides currently following hashing-algorithms:
 - sha512
 
 # Installation
-`cargo install --path .`
+- Download the project (via zip or git)
+- `cargo install --path .`
