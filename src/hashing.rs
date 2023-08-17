@@ -117,14 +117,28 @@ pub fn hash(path: PathBuf, algorithm: &str) -> Result<String, String> {
     };
 
     let progresses = MultiProgress::new();
-    const TEMPLATE: &str = "{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} ({eta}) ({msg})";
-    let pb_style = ProgressStyle::with_template(TEMPLATE)
+    let pb_style = ProgressStyle::with_template(
+            "[{elapsed_precise}] [{bar:.cyan/blue}] {bytes:>10}/{total_bytes:>10} (ETA: {eta}) ({msg})"
+        )
         .unwrap()
         .with_key("eta", |state: &ProgressState, w: &mut dyn Write| {
             write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap()
         })
         .progress_chars("#>-");
-    for filepath in files {
+    let n_files = files.len() as u64;
+    let file_pb = progresses.add(ProgressBar::new(n_files)
+        .with_style(
+            ProgressStyle::with_template(
+                "[{elapsed_precise}] [{bar:.cyan/blue}] hashed {pos:>4}/{len:>4} files (ETA: {eta})"
+        )
+        .unwrap()
+        .with_key("eta", |state: &ProgressState, w: &mut dyn Write| {
+            write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap()
+        })
+        .progress_chars("#>-")));
+
+    for (i, filepath) in files.into_iter().enumerate() {
+        file_pb.set_position(i as u64);
         let filepath_str = filepath.to_string_lossy();
         let filename_str = filepath
             .file_name()
@@ -150,6 +164,7 @@ pub fn hash(path: PathBuf, algorithm: &str) -> Result<String, String> {
         let mut buffer = [0u8; BUFFER_SIZE];
         let mut position = 0;
         while let Ok(n) = reader.read(&mut buffer) {
+            file_pb.tick();
             pb.set_position(position as u64);
             hasher.update(&buffer[..n]);
             position += n;
@@ -160,5 +175,7 @@ pub fn hash(path: PathBuf, algorithm: &str) -> Result<String, String> {
             }
         }
     }
+    file_pb.finish_with_message(format!("hashed {} files", n_files));
+
     Ok(byte_to_hex(&hasher.finalize()))
 }
