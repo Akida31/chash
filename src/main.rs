@@ -86,7 +86,10 @@ fn get_path() -> PathBuf {
                 {
                     if best_match.1 <= path.display().to_string().len() / 5 {
                         let best_match = best_match.0.display().to_string();
-                        print!("Did you mean {}? [y/n] ", best_match.trim_start_matches("./"));
+                        print!(
+                            "Did you mean {}? [y/n] ",
+                            best_match.trim_start_matches("./")
+                        );
                         let mut input = String::new();
                         std::io::stdout().flush().expect("Output error");
                         std::io::stdin()
@@ -131,7 +134,7 @@ fn get_algorithm(given_hash: Option<String>) -> String {
                 .read_line(&mut input)
                 .expect("Can't read input");
             let algorithm: String = input.trim().parse().unwrap();
-            if hashing::available_algorithms().contains(&&**&algorithm) {
+            if hashing::available_algorithms().contains(&&*algorithm) {
                 break algorithm;
             } else {
                 println!("Algorithm not available\nAvailable algorithms:");
@@ -158,11 +161,10 @@ fn main() {
                     let path = PathBuf::from(path);
                     if path.is_file() || path.is_dir() {
                         Ok(())
-                    }
-                    else {
+                    } else {
                         Err("Path not found".to_string())
                     }
-                })
+                }),
         )
         .arg(
             clap::Arg::with_name("algorithm")
@@ -170,8 +172,7 @@ fn main() {
                 .short("a")
                 .long("algorithm")
                 .takes_value(true)
-                .possible_values(&hashing::available_algorithms())
-
+                .possible_values(&hashing::available_algorithms()),
         )
         .arg(
             clap::Arg::with_name("hash")
