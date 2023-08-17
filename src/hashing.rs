@@ -3,6 +3,7 @@ use std::fs::File;
 use std::io::{BufReader, Read};
 use std::path::PathBuf;
 
+use indicatif::{MultiProgress, ProgressBar, ProgressState, ProgressStyle};
 use sha1::Digest;
 use std::fs;
 
@@ -114,19 +115,50 @@ pub fn hash(path: PathBuf, algorithm: &str) -> Result<String, String> {
     } else {
         get_files_of_directory(path, true).unwrap()
     };
-    for file in files {
-        let file = match File::open(&file) {
+
+    let progresses = MultiProgress::new();
+    const TEMPLATE: &str = "{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} ({eta}) ({msg})";
+    let pb_style = ProgressStyle::with_template(TEMPLATE)
+        .unwrap()
+        .with_key("eta", |state: &ProgressState, w: &mut dyn Write| {
+            write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap()
+        })
+        .progress_chars("#>-");
+    for filepath in files {
+        let filepath_str = filepath.to_string_lossy();
+        let filename_str = filepath
+            .file_name()
+            .map(|s| s.to_string_lossy())
+            .unwrap_or_else(|| filepath_str.clone());
+        let file = match File::open(&filepath) {
             Ok(f) => f,
-            Err(_) => return Err(format!("{:?} is not a valid path!", file)),
+            Err(_) => return Err(format!("{} is not a valid path!", filepath_str,)),
         };
+        let pb = {
+            let total_size = file
+                .metadata()
+                .map_err(|e| format!("can't read metadata for {}: {}", filepath_str, e))?
+                .len();
+            let pb = progresses.add(ProgressBar::new(total_size));
+            pb.set_style(pb_style.clone());
+            pb.set_message(format!("hashing {}", filename_str));
+
+            pb
+        };
+
         let mut reader = BufReader::new(file);
         let mut buffer = [0u8; BUFFER_SIZE];
+        let mut position = 0;
         while let Ok(n) = reader.read(&mut buffer) {
+            pb.set_position(position as u64);
             hasher.update(&buffer[..n]);
+            position += n;
+
             if n == 0 || n < BUFFER_SIZE {
+                pb.finish_and_clear();
                 break;
             }
         }
     }
-    Ok(byte_to_hex(&*hasher.finalize()))
+    Ok(byte_to_hex(&hasher.finalize()))
 }

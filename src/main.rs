@@ -194,7 +194,7 @@ fn main() {
         Some(algo) => algo.to_string(),
         None => get_algorithm(Some(given_hash.clone())),
     };
-    let computed_hash = hashing::hash(path, &*algorithm).unwrap();
+    let computed_hash = hashing::hash(path, &algorithm).unwrap();
     if given_hash.len() < 2 {
         println!("{}", computed_hash);
     } else if computed_hash == given_hash {
