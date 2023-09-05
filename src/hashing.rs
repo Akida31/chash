@@ -118,13 +118,13 @@ pub fn hash(path: PathBuf, algorithm: &str) -> Result<String, String> {
 
     let progresses = MultiProgress::new();
     let pb_style = ProgressStyle::with_template(
-            "[{elapsed_precise}] [{bar:.cyan/blue}] {bytes:>10}/{total_bytes:>10} (ETA: {eta}) ({msg})"
-        )
-        .unwrap()
-        .with_key("eta", |state: &ProgressState, w: &mut dyn Write| {
-            write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap()
-        })
-        .progress_chars("#>-");
+        "[{elapsed_precise}] [{bar:.cyan/blue}] {bytes:>10}/{total_bytes:>10} (ETA: {eta}) ({msg})",
+    )
+    .unwrap()
+    .with_key("eta", |state: &ProgressState, w: &mut dyn Write| {
+        write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap()
+    })
+    .progress_chars("#>-");
     let n_files = files.len() as u64;
     let file_pb = progresses.add(ProgressBar::new(n_files)
         .with_style(
@@ -146,7 +146,7 @@ pub fn hash(path: PathBuf, algorithm: &str) -> Result<String, String> {
             .unwrap_or_else(|| filepath_str.clone());
         let file = match File::open(&filepath) {
             Ok(f) => f,
-            Err(_) => return Err(format!("{} is not a valid path!", filepath_str,)),
+            Err(e) => return Err(format!("{} is not a valid path: {}", filepath_str, e)),
         };
         let pb = {
             let total_size = file
