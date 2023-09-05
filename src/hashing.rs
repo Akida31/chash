@@ -1,6 +1,6 @@
 use std::fmt::Write;
 use std::fs::File;
-use std::io::{BufReader, Read};
+use std::io::{BufReader, Read, Write as IoWrite};
 use std::path::PathBuf;
 
 use indicatif::{MultiProgress, ProgressBar, ProgressState, ProgressStyle};
@@ -96,9 +96,13 @@ pub fn get_files_of_directory(direcory: PathBuf, recursive: bool) -> std::io::Re
 /// use std::path::Pathbuf;
 /// let file = PathBuf::from("./Cargo.toml");
 /// let algorithm = "sha256";
-/// let result = hash(file, &algorithm);
+/// let result = hash(file, &algorithm, None);
 /// ```
-pub fn hash(path: PathBuf, algorithm: &str) -> Result<String, String> {
+pub fn hash(
+    path: PathBuf,
+    algorithm: &str,
+    output_individual: Option<PathBuf>,
+) -> Result<String, String> {
     if !available_algorithms().contains(&algorithm) {
         return Err(format!("{} is not a available algorithm!", algorithm));
     }
@@ -110,10 +114,30 @@ pub fn hash(path: PathBuf, algorithm: &str) -> Result<String, String> {
         "sha512" => Box::new(sha2::Sha512::new()),
         a => unimplemented!("Algorithm {} is not implemented", a),
     };
+    let (individual_hasher, mut individual_file) =
+        if let Some(output_individual) = &output_individual {
+            let mut file = File::create(output_individual)
+                .map_err(|e| format!("can't open file for output-individual: {}", e))?;
+            file.write_all(
+                format!(
+                    "hash algorithm: {}\nbase: {}\n----------\n",
+                    algorithm,
+                    path.to_string_lossy()
+                )
+                .as_bytes(),
+            )
+            .map_err(|e| format!("can't write header to output-individual: {}", e))?;
+            (Some(hasher.clone()), Some(file))
+        } else {
+            (None, None)
+        };
+
     let files = if path.is_file() {
         vec![path]
     } else {
-        get_files_of_directory(path, true).unwrap()
+        let mut files = get_files_of_directory(path, true).unwrap();
+        files.sort();
+        files
     };
 
     let progresses = MultiProgress::new();
@@ -138,6 +162,17 @@ pub fn hash(path: PathBuf, algorithm: &str) -> Result<String, String> {
         .progress_chars("#>-")));
 
     for (i, filepath) in files.into_iter().enumerate() {
+        if let Some(path) = &output_individual {
+            if path
+                .canonicalize()
+                .map(|path| filepath.canonicalize().unwrap() == path)
+                .unwrap_or_else(|_| &filepath == path)
+            {
+                println!("skipping output-individual file {}", path.to_string_lossy());
+                continue;
+            }
+        }
+        let mut file_hasher = individual_hasher.clone();
         file_pb.set_position(i as u64);
         let filepath_str = filepath.to_string_lossy();
         let filename_str = filepath
@@ -167,6 +202,9 @@ pub fn hash(path: PathBuf, algorithm: &str) -> Result<String, String> {
             file_pb.tick();
             pb.set_position(position as u64);
             hasher.update(&buffer[..n]);
+            if let Some(file_hasher) = file_hasher.as_mut() {
+                file_hasher.update(&buffer[..n]);
+            }
             position += n;
 
             if n == 0 || n < BUFFER_SIZE {
@@ -174,8 +212,24 @@ pub fn hash(path: PathBuf, algorithm: &str) -> Result<String, String> {
                 break;
             }
         }
+        if let Some(file) = individual_file.as_mut() {
+            file.write_all(
+                format!(
+                    "- {} = {}\n",
+                    filepath_str,
+                    byte_to_hex(&file_hasher.unwrap().finalize())
+                )
+                .as_bytes(),
+            )
+            .map_err(|e| format!("can't write line to output-individual: {}", e))?;
+        }
     }
     file_pb.finish_with_message(format!("hashed {} files", n_files));
+    let hash = byte_to_hex(&hasher.finalize());
+    if let Some(file) = individual_file.as_mut() {
+        file.write_all(format!("----------\ncomplete hash = {}\n", hash).as_bytes())
+            .map_err(|e| format!("can't write final line to output-individual: {}", e))?;
+    }
 
-    Ok(byte_to_hex(&hasher.finalize()))
+    Ok(hash)
 }

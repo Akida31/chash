@@ -181,6 +181,35 @@ fn main() {
                 .long("hash")
                 .takes_value(true),
         )
+        .arg(
+            clap::Arg::with_name("output-individual")
+                .help("The filename where the individual hashes will be written")
+                .long("output-individual")
+                .takes_value(true)
+                .validator(|path| {
+                    let path = PathBuf::from(path);
+                    if path.is_file() || path.is_dir() {
+                        Err("Path already exists".to_string())
+                    } else {
+                        // TODO find a way to check this
+                        /*let path = path
+                            .canonicalize()
+                            .map_err(|e| format!("path is invalid: {}", e))?;
+                        let parent = path.parent().ok_or_else(|| {
+                            format!("`{}` must have a parent", path.to_string_lossy())
+                        })?;
+                        if parent.is_dir() {
+                            Ok(())
+                        } else {
+                            Err(format!(
+                                "`{}` must be a directory",
+                                parent.to_string_lossy()
+                            ))
+                        }*/
+                        Ok(())
+                    }
+                }),
+        )
         .get_matches();
     let path = match matches.value_of("path") {
         Some(path) => PathBuf::from(path),
@@ -194,7 +223,12 @@ fn main() {
         Some(algo) => algo.to_string(),
         None => get_algorithm(Some(given_hash.clone())),
     };
-    let computed_hash = hashing::hash(path, &algorithm).unwrap();
+    let computed_hash = hashing::hash(
+        path,
+        &algorithm,
+        matches.value_of("output-individual").map(PathBuf::from),
+    )
+    .unwrap();
     if given_hash.len() < 2 {
         println!("{}", computed_hash);
     } else if computed_hash == given_hash {
